@@ -12,19 +12,21 @@ def validate_name(name):
     '''
     result = 1
 
-    if (len(name) != 20):
+    if (len(name.strip()) > 20):
         result = 0
     else:
         for ch in name:
-            n=ord(ch)
-            if ( (n >= ord('a') and n <=ord('z')) or (n >= ord('A') and n <=ord('Z')) or n==10):
+            n = ord(ch)
+            if ch.isalpha() or ch.isspace():
+                print('%s ****** n=%d   and Len=%d' % (name, n, len(name)))
                 result = 1
                 continue
             else:
-                result=0
-                #print('%s ****** n=%d   and Len=%d'% (name,n,len(name)))
+                result = 0
+                print('%s ****** n=%d   and Len=%d'% (name,n,len(name)))
                 break
     return result
+
 
 # Extension exercises
 # - Complete the validate_name2 function
@@ -39,27 +41,31 @@ def validate_name2(name):
     '''
     result = 1
 
-    if (len(name) != 20):
+    if (len(name.strip()) > 20):
         result = 0
     else:
         for ch in name:
-            n=ord(ch)
-            if ( (n >= ord('a') and n <=ord('z')) or (n >= ord('A') and n <=ord('Z')) or n==10):
+            #n = ord(ch)
+            if ch.isalpha() or ch.isspace():
                 result = 1
                 continue
             else:
-                result=0
+                result = 0
                 #print('%s ****** n=%d   and Len=%d'% (name,n,len(name)))
                 break
-    if (result):
-        vf= open('valid_names.txt','a')
+    if (result==1):
+        vf = open('valid_names.txt', 'a')
         vf.write(name.rstrip())
+        #print name.rstrip()
         vf.close()
     else:
-        ef= open('invalid_names.txt','a')
+        ef = open('invalid_names.txt', 'a')
         ef.write(name.rstrip())
         ef.close()
+        #print ('Invalid %s' %name.rstrip())
     return result
+
+
 def main():
     with open('names.txt') as f:
         lines = f.readlines()
@@ -71,20 +77,20 @@ def main():
     for line in lines:
         name = line
         valid = validate_name2(name)
-        print (valid)
-        if valid==True:
+        #print (valid)
+        if valid == 1:
             valid_names.append(name)
         else:
             invalid_names.append(name)
 
     print("Total count of records imported: " + str((len(valid_names) + len(invalid_names))))
     print("Count of imported records that meet the selected criteria: " + str(len(valid_names)))
-    print("list of valid names")
+    print("list of invalid names")
     print("---------------------")
 
-
-    for name in valid_names:
+    for name in invalid_names:
         print(name.rstrip())
+
 
 if __name__ == "__main__":
     main()

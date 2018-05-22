@@ -3,13 +3,13 @@ import errno
 import os
 import fileinput
 from jira import JIRA
-from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog
+from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 import json
 #from lib.jirahelper import *
 
 # <!----- PARAMETERS ------
 
-jql = 'text ~ "cli"'
+jql = 'project = "SWAG2"'
 SprintExtract = "Sprints.csv"
 JiraExtract = "JiraIssues.csv"
 WorkLogExtract = "WorkLogs.csv"
@@ -22,7 +22,7 @@ def get_jira_admin_auth():
     # jira = JIRA(basic_auth=(userName, passwd), server='https://jira.vectorams.co.nz')
     serverName = 'https://jira.vectorams.co.nz'
     userName = 'kannanr'
-    passwd = ''
+    passwd = 'Password01'
     return JIRA(basic_auth=(userName, passwd),
                 server='https://jira.vectorams.co.nz')
 
@@ -74,7 +74,7 @@ def importFromJira():
     FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','customfield_10103']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions']
 
     flist = ','.join(FieldList)
     #flist = flist.replace('customfield_10000,', '')
@@ -106,7 +106,7 @@ def importFromJira():
 
         if running:
             block_num += 1
-            print("Building Jira Issues...")
+            print('Building Jira Issues..' + str(datetime.datetime.time(datetime.datetime.now())))
             concatStr = ''
             wlConcat = ''
             spConcat=''
@@ -122,8 +122,10 @@ def importFromJira():
                 for field in FieldList:
                     f = 'issue.fields.' + field
 
-                    # Sprint Details
+
+                    # Sprint Details {list}
                     if field == 'customfield_10000':
+                        sp=''
                         for s in eval(f) or []:
                             sp = s.split(",")
                             spConcat =  spConcat + ','.join(sp[1:] + ['\n'])
@@ -131,13 +133,24 @@ def importFromJira():
                         if sp[1:] !='':
                             sprintname= sp[3]
                             concatStr = concatStr + sprintname.replace('name=','') + ','
-                    # Account WBS Code
+                        else:
+                            concatStr = concatStr + '' + ','
+                    # Account WBS Code {dict}
                     elif field == 'customfield_10600':
                         try:
-                            concatStr = concatStr + issue.raw['fields'][field]['key'] + ','
+                            concatStr = concatStr + issue.raw['fields'][field]['name'] + ','
                             #print(issue.raw['fields'][field]['key'])
                         except TypeError:
-                            concatStr = concatStr + ','
+                           concatStr = concatStr + ','
+
+                    # fixVersions {list}
+                    elif field == 'fixVersions':
+                        fv=''
+                        for fv in eval(f) or []:
+                            fixver = str(fv)
+
+                        if fv is not None:
+                            concatStr = concatStr + fixver + ','
                     else:
                         try:
                             concatStr = concatStr + str(eval(f)) + ','
@@ -160,7 +173,7 @@ def importFromJira():
             for rf in spfieldremove:
                 replacestrinfile(SprintExtract, rf, '')
             # **** GET JIRA ISSUES  **** ---->
-
+    print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
 
 def getWorkLog(worklogs):
     for w in worklogs:
@@ -208,12 +221,28 @@ def listallboards():
     #    print(p.raw['fields'][f])
 
 
+def listallTeams():
+    jira=setUp()
+    issue = jira.issue('SWAG2-2522')
+    # Fetch all fields
+    allfields = jira.fields()
+    # Make a map from field name -> field id
+    nameMap = {field['name']: field['id'] for field in allfields}
+    # Fetch an issue
+
+    # You can now look up custom fields by name using the map
+    print(nameMap)
+    print (getattr(issue.fields, nameMap['name']['id']))
+
+    #for f in p.raw['fields']:
+    #    print(p.raw['fields'][f])
+
 def main():
     importFromJira()
     #listallboards()
     #List_all_Fields()
-    # worklog_trial()
-
+    #worklog_trial()
+    #listallTeams()
 
 if __name__ == '__main__':
     main()

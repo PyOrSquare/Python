@@ -112,6 +112,7 @@ def importFromJira():
             spConcat=''
 
             for issue in issues:
+                print(issue.key)
                 worklogs = jira.worklogs(issue.key)
                 wl = getWorkLog(worklogs)
                 if wl is not None:
@@ -138,13 +139,17 @@ def importFromJira():
                     # Account WBS Code {dict}
                     elif field == 'customfield_10600':
                         try:
-                            concatStr = concatStr + issue.raw['fields'][field]['name'] + ','
-                            #print(issue.raw['fields'][field]['key'])
+                            if (issue.raw['fields']['customfield_10600']['id'] != '0'):
+                                concatStr = concatStr + issue.raw['fields'][field]['name'] + ','
+                                #print(issue.raw['fields'][field]['key'])
+                            else:
+                                concatStr = concatStr + ','
                         except TypeError:
-                           concatStr = concatStr + ','
+                            concatStr = concatStr + ','
 
                     # fixVersions {list}
                     elif field == 'fixVersions':
+                        fixver=''
                         fv=''
                         for fv in eval(f) or []:
                             fixver = str(fv)
@@ -223,9 +228,14 @@ def listallboards():
 
 def listallTeams():
     jira=setUp()
-    issue = jira.issue('SWAG2-2522')
+    issue = jira.issue('SWAG2-6606')
     # Fetch all fields
     allfields = jira.fields()
+    print(issue.raw['fields']['customfield_10600']['id'])
+    if (issue.raw['fields']['customfield_10600']['id'] != '0'):
+        print(issue.raw['fields']['customfield_10600']['name'])
+    else:
+        print('Skip')
     # Make a map from field name -> field id
     nameMap = {field['name']: field['id'] for field in allfields}
     # Fetch an issue

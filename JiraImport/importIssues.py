@@ -9,7 +9,7 @@ import json
 
 # <!----- PARAMETERS ------
 
-jql = 'text ~ "cli"'
+jql = 'text ~ "yellow"'
 SprintExtract = "Sprints.csv"
 JiraExtract = "JiraIssues.csv"
 WorkLogExtract = "WorkLogs.csv"
@@ -74,7 +74,7 @@ def importFromJira():
     FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','customfield_10103']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions']
 
     flist = ','.join(FieldList)
     #flist = flist.replace('customfield_10000,', '')
@@ -122,7 +122,8 @@ def importFromJira():
                 for field in FieldList:
                     f = 'issue.fields.' + field
 
-                    # Sprint Details
+
+                    # Sprint Details {list}
                     if field == 'customfield_10000':
                         for s in eval(f) or []:
                             sp = s.split(",")
@@ -131,13 +132,22 @@ def importFromJira():
                         if sp[1:] !='':
                             sprintname= sp[3]
                             concatStr = concatStr + sprintname.replace('name=','') + ','
-                    # Account WBS Code
+                    # Account WBS Code {dict}
                     elif field == 'customfield_10600':
                         try:
                             concatStr = concatStr + issue.raw['fields'][field]['key'] + ','
                             #print(issue.raw['fields'][field]['key'])
                         except TypeError:
                             concatStr = concatStr + ','
+                    # fixVersions {list}
+                    elif field == 'fixVersions':
+                        fv=''
+                        for fv in eval(f) or []:
+                            print(fv)
+
+                        if fv is not None:
+                            sprintname= str(fv)
+                            concatStr = concatStr + sprintname + ','
                     else:
                         try:
                             concatStr = concatStr + str(eval(f)) + ','
@@ -208,12 +218,20 @@ def listallboards():
     #    print(p.raw['fields'][f])
 
 
+def listallTeams():
+    jira=setUp()
+    issue = jira.issue('SWAG2-2522')
+    jt=TimeTracking.raw
+    print(jt)
+    #for f in p.raw['fields']:
+    #    print(p.raw['fields'][f])
+
 def main():
     importFromJira()
     #listallboards()
     #List_all_Fields()
-    # worklog_trial()
-
+    #worklog_trial()
+    #listallTeams()
 
 if __name__ == '__main__':
     main()

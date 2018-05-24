@@ -1,18 +1,21 @@
 import datetime
+import time
 import errno
 import os
 import fileinput
 from jira import JIRA
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 import json
-#from lib.jirahelper import *
+
+# from lib.jirahelper import *
 
 # <!----- PARAMETERS ------
-
-jql = 'project = "SWAG2"'
-SprintExtract = "Sprints.csv"
-JiraExtract = "JiraIssues.csv"
-WorkLogExtract = "WorkLogs.csv"
+project = "DDNZ"
+jql = 'project = "' + project + '"'
+SprintExtract = project + "_Sprints.csv"
+JiraExtract = project + "_JiraIssues.csv"
+WorkLogExtract = project + "_WorkLogs.csv"
+date = time.strftime('%Y%m%d%H%M%S')
 
 
 # ----- PARAMETERS ------>
@@ -44,6 +47,7 @@ def writecsv(data, filename, fieldNames):
 
 def silentremove(filename):
     try:
+        os.rename(filename, filename + '_' + date)
         os.remove(filename)
     except OSError as e:  # this would be "except OSError, e:" before Python 2.6
         if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
@@ -74,16 +78,17 @@ def importFromJira():
     FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600', 'fixVersions', 'customfield_10008']
 
     flist = ','.join(FieldList)
-    #flist = flist.replace('customfield_10000,', '')
+    # flist = flist.replace('customfield_10000,', '')
 
-    WLFieldList = ['id', 'created', 'issueId', 'author.name', 'timeSpentSeconds']
+    WLFieldList = ['issuekey', 'id', 'issueId', 'created', 'author.name', 'timeSpentSeconds',
+                   'runningremainingestimate', 'totalremaining', 'cummtimespent']
     wlflist = ','.join(WLFieldList)
 
     SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'completeDate', 'sequence']
-    spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'completeDate=', 'sequence=']
+    spfieldremove = ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'completeDate=', 'sequence=']
     spflist = ','.join(SPFieldList)
 
     # Add Header to Extracts
@@ -92,6 +97,7 @@ def importFromJira():
     writeHeader(WorkLogExtract, wlflist)
 
     jira = setUp()
+
     # <!---- **** GET JIRA ISSUES  ****
     block_size = 500
     block_num = 0
@@ -109,12 +115,26 @@ def importFromJira():
             print('Building Jira Issues..' + str(datetime.datetime.time(datetime.datetime.now())))
             concatStr = ''
             wlConcat = ''
-            spConcat=''
+            spConcat = ''
 
             for issue in issues:
                 print(issue.key)
                 worklogs = jira.worklogs(issue.key)
-                wl = getWorkLog(worklogs)
+
+                origestimate = 0
+                remestimate = 0
+
+                # Total Original Estimate
+                if issue.raw['fields']['aggregatetimeoriginalestimate'] is not None:
+                    origestimate = int(issue.raw['fields']['aggregatetimeoriginalestimate'])
+
+                # Total Remaining Estimate
+                if issue.raw['fields']['aggregatetimeestimate'] is not None:
+                    remestimate = int(issue.raw['fields']['aggregatetimeestimate'])
+
+                wl = getWorkLog(issue.key, worklogs, origestimate, remestimate)
+                # print('{0}:{1}:{2}'.format(issue.key, origestimate, remestimate))
+
                 if wl is not None:
                     wlConcat = wlConcat + wl
 
@@ -123,17 +143,16 @@ def importFromJira():
                 for field in FieldList:
                     f = 'issue.fields.' + field
 
-
                     # Sprint Details {list}
                     if field == 'customfield_10000':
-                        sp=''
+                        sp = ''
                         for s in eval(f) or []:
                             sp = s.split(",")
-                            spConcat =  spConcat + ','.join(sp[1:] + ['\n'])
-                        #print(sp[1:])
-                        if sp[1:] !='':
-                            sprintname= sp[3]
-                            concatStr = concatStr + sprintname.replace('name=','') + ','
+                            spConcat = spConcat + ','.join(sp[1:] + ['\n'])
+                        # print(sp[1:])
+                        if sp[1:] != '':
+                            sprintname = sp[3]
+                            concatStr = concatStr + sprintname.replace('name=', '') + ','
                         else:
                             concatStr = concatStr + '' + ','
                     # Account WBS Code {dict}
@@ -141,7 +160,7 @@ def importFromJira():
                         try:
                             if (issue.raw['fields']['customfield_10600']['id'] != '0'):
                                 concatStr = concatStr + issue.raw['fields'][field]['name'] + ','
-                                #print(issue.raw['fields'][field]['key'])
+                                # print(issue.raw['fields'][field]['key'])
                             else:
                                 concatStr = concatStr + ','
                         except TypeError:
@@ -149,8 +168,8 @@ def importFromJira():
 
                     # fixVersions {list}
                     elif field == 'fixVersions':
-                        fixver=''
-                        fv=''
+                        fixver = ''
+                        fv = ''
                         for fv in eval(f) or []:
                             fixver = str(fv)
 
@@ -177,16 +196,30 @@ def importFromJira():
             # Cleanse Sprint file
             for rf in spfieldremove:
                 replacestrinfile(SprintExtract, rf, '')
-            # **** GET JIRA ISSUES  **** ---->
+                # **** GET JIRA ISSUES  **** ---->
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
 
-def getWorkLog(worklogs):
+
+def getWorkLog(issuekey, worklogs, origestimate, remestimate):
+    os = origestimate
+    cumremestimate = os
+    cummtimespent = 0
+    retStr = ''
     for w in worklogs:
         # print (w.issueId)
-        retStr = str(w.id) + ',' + str(w.issueId) + ',' + str(w.created) + ',' + w.author.name + ',' + str(
-            w.timeSpentSeconds) + '\n'
+        if origestimate > 0:
+            cumremestimate = (os - int(w.timeSpentSeconds))
+        cummtimespent = cummtimespent + int(w.timeSpentSeconds)
 
-        return retStr
+        print('{0}:{1}:{2}:{3}'.format(w.timeSpentSeconds, os, cumremestimate, remestimate))
+
+        retStr = issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(
+            w.created) + ',' + w.author.name + ',' + str(
+            w.timeSpentSeconds) + ',' + str(cumremestimate) + ',' + str(remestimate) + ',' + str(cummtimespent) + '\n'
+
+        if origestimate > 0:
+            os = cumremestimate
+    return retStr
 
 
 def worklog_trial():
@@ -211,48 +244,47 @@ def List_all_Fields():
         # print("Field:", field_name, "Value:", issue.raw['fields'][field_name])
         print("Field:{0}, Value:{1}".format(field_name, issue.raw['fields'][field_name]))
 
+
 def listallboards():
-    jira=setUp()
+    jira = setUp()
     issue = jira.issue('SWAG2-2522')
-    jt=jira.transitions(issue)
-    p=jira.project(issue.fields.project)
+    jt = jira.transitions(issue)
+    p = jira.project(issue.fields.project)
 
     boards = jira.boards()
     for board in boards:
         print('{0} : {1}'.format(str(board.id).ljust(5), board.name))
 
 
-    #for f in p.raw['fields']:
-    #    print(p.raw['fields'][f])
+        # for f in p.raw['fields']:
+        #    print(p.raw['fields'][f])
 
 
 def listallTeams():
-    jira=setUp()
-    issue = jira.issue('SWAG2-6606')
+    jira = setUp()
+    issue = jira.issue('DDNZ-1077')
     # Fetch all fields
     allfields = jira.fields()
-    print(issue.raw['fields']['customfield_10600']['id'])
-    if (issue.raw['fields']['customfield_10600']['id'] != '0'):
-        print(issue.raw['fields']['customfield_10600']['name'])
-    else:
-        print('Skip')
+
     # Make a map from field name -> field id
     nameMap = {field['name']: field['id'] for field in allfields}
     # Fetch an issue
 
-    # You can now look up custom fields by name using the map
+    # Look up custom fields by name using the map
     print(nameMap)
-    print (getattr(issue.fields, nameMap['name']['id']))
+    print(getattr(issue.fields, nameMap['name']['id']))
 
-    #for f in p.raw['fields']:
+    # for f in p.raw['fields']:
     #    print(p.raw['fields'][f])
+
 
 def main():
     importFromJira()
-    #listallboards()
-    #List_all_Fields()
-    #worklog_trial()
-    #listallTeams()
+    # listallboards()
+    # List_all_Fields()
+    # worklog_trial()
+    # 3listallTeams()
+
 
 if __name__ == '__main__':
     main()

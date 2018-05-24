@@ -4,9 +4,10 @@ import errno
 import os
 import fileinput
 from jira import JIRA
+import glob
+import csv
+from xlsxwriter.workbook import Workbook
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
-import json
-#from lib.jirahelper import *
 
 # <!----- PARAMETERS ------
 project = "DDNZ"
@@ -43,7 +44,7 @@ def writecsv(data, filename, fieldNames):
     return;
 
 
-def silentremove(filename):
+def silentrename(filename):
     try:
         os.rename(filename, filename + '_' + date)
         os.remove(filename)
@@ -51,6 +52,12 @@ def silentremove(filename):
         if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
             raise  # re-raise exception if a different error occurred
 
+def silentremove(filename):
+    try:
+        os.remove(filename)
+    except OSError as e:  # this would be "except OSError, e:" before Python 2.6
+        if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
+            raise  # re-raise exception if a different error occurred
 
 def writeHeader(filename, line):
     with open(filename, 'w+') as f:
@@ -65,18 +72,31 @@ def replacestrinfile(filename, text_to_search, replacement_text):
             print(line.replace(text_to_search, replacement_text), end='')
 
 
+def coneverttoxls():
+    for csvfile in glob.glob(os.path.join('.', '*.csv')):
+        workbook = Workbook(csvfile[:-4] + '.xlsx')
+        worksheet = workbook.add_worksheet()
+        with open(csvfile, 'rt', encoding='utf8') as f:
+            reader = csv.reader(f)
+            for r, row in enumerate(reader):
+                for c, col in enumerate(row):
+                    worksheet.write(r, c, col)
+        workbook.close()
+        silentremove(csvfile)
+
+
 def importFromJira():
     print('Started..' + str(datetime.datetime.time(datetime.datetime.now())))
 
     # Delete Extract files if already exist
-    silentremove(JiraExtract)
-    silentremove(SprintExtract)
-    silentremove(WorkLogExtract)
+    silentrename(JiraExtract)
+    silentrename(SprintExtract)
+    silentrename(WorkLogExtract)
 
     FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10600']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008']
 
     flist = ','.join(FieldList)
     #flist = flist.replace('customfield_10000,', '')
@@ -178,6 +198,8 @@ def importFromJira():
                             concatStr = concatStr + str(eval(f)) + ','
                         except TypeError:
                             concatStr = concatStr + ','
+                        except AttributeError:
+                            concatStr = concatStr + ','
 
                 concatStr = concatStr + '\n'
             # print(concatStr)
@@ -273,11 +295,12 @@ def listallTeams():
     #    print(p.raw['fields'][f])
 
 def main():
-    importFromJira()
+    #importFromJira()
     #listallboards()
     #List_all_Fields()
     #worklog_trial()
     #3listallTeams()
+    coneverttoxls()
 
 if __name__ == '__main__':
     main()

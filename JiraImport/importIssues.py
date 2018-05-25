@@ -67,10 +67,10 @@ def writecsv(data, filename, fieldNames):
     csv.write(data)
     csv.close()
 
-    if filename.__contains__('Sprint'):
+    #if filename.__contains__('Sprint'):
     # Cleanse Sprint file
-        for rf in spfieldremove:
-            replacestrinfile(filename, rf, '')
+    #    for rf in spfieldremove:
+    #        replacestrinfile(filename, rf, '')
     return;
 
 # Rename file if exist
@@ -171,9 +171,9 @@ def importFromJira():
     spflist = ','.join(SPFieldList)
 
     # Add Header to Extracts
-    writeHeader(JiraExtract, 'issuekey,' + flist)
-    writeHeader(SprintExtract, spflist)
-    writeHeader(WorkLogExtract, wlflist)
+    writeHeader(JiraExtract + csvext, 'issuekey,' + flist)
+    writeHeader(SprintExtract + csvext, spflist)
+    writeHeader(WorkLogExtract + csvext, wlflist)
 
     jira = setUp()
     
@@ -275,11 +275,14 @@ def importFromJira():
             # Write Sprint details to File
             writecsv(spConcat, SprintExtract, spflist)
 
-            # Cleanse Sprint file
-            #for rf in spfieldremove:
-            #    replacestrinfile(SprintExtract, rf, '')
+    # Cleanse Sprint file
+    try:
+        for rf in spfieldremove:
+            replacestrinfile(SprintExtract, rf, '')
+    except FileNotFoundError:
+        print('Sprint file cleansing failed')
 
-            coneverttoxls()
+    coneverttoxls()
 
             # **** GET JIRA ISSUES  **** ---->
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
@@ -364,9 +367,9 @@ def main():
     #listallboards()
     #List_all_Fields()
     #worklog_trial()
-    #3listallTeams()
+    #listallTeams()
     #a= coneverttoxls('JiraIssues.csv')
-    #print (a)
+    #createtable('DDNZ.xlsx','A1:B5')
 
 if __name__ == '__main__':
     urllib3.disable_warnings()

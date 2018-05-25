@@ -1,12 +1,22 @@
+from jira import JIRA
+#from xlsxwriter.workbook import Workbook
+from openpyxl import Workbook
+from openpyxl import load_workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
+try:
+    from openpyxl.cell import get_column_letter
+except ImportError:
+    from openpyxl.utils import get_column_letter
+
+
 import datetime
 import time
 import errno
 import os
 import fileinput
-from jira import JIRA
 import glob
 import csv
-from xlsxwriter.workbook import Workbook
+
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
@@ -33,17 +43,16 @@ def setUp():
     jira = get_jira_admin_auth()
     return jira
 
-
+# Writes to csv and converts into Excel
 def writecsv(data, filename, fieldNames):
     csv = open(filename, "a")
-    # csv.write(fieldNames+ '\n')
     csv.write(data)
-    # print (data)
-
     csv.close()
+
+    coneverttoxls(filename)
     return;
 
-
+# Rename file if exist
 def silentrename(filename):
     try:
         os.rename(filename, filename + '_' + date)
@@ -52,6 +61,7 @@ def silentrename(filename):
         if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
             raise  # re-raise exception if a different error occurred
 
+# Delete a file is exist
 def silentremove(filename):
     try:
         os.remove(filename)
@@ -59,30 +69,68 @@ def silentremove(filename):
         if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
             raise  # re-raise exception if a different error occurred
 
+# Insert header line in the given file
 def writeHeader(filename, line):
     with open(filename, 'w+') as f:
         content = f.read()
         f.seek(0, 0)
         f.write(line.rstrip('\r\n') + '\n' + content)
 
-
+# Find and replace string in the given file
 def replacestrinfile(filename, text_to_search, replacement_text):
     with fileinput.FileInput(filename, inplace=True, backup='.bak') as file:
         for line in file:
             print(line.replace(text_to_search, replacement_text), end='')
 
-
-def coneverttoxls():
+# Convert csv to Excel file
+def coneverttoxls(filename):
+    filecount=0
+    filedata=[0,0]
     for csvfile in glob.glob(os.path.join('.', '*.csv')):
-        workbook = Workbook(csvfile[:-4] + '.xlsx')
-        worksheet = workbook.add_worksheet()
-        with open(csvfile, 'rt', encoding='utf8') as f:
-            reader = csv.reader(f)
-            for r, row in enumerate(reader):
-                for c, col in enumerate(row):
-                    worksheet.write(r, c, col)
-        workbook.close()
+        f = open(csvfile)
+        csv.register_dialect('comma', delimiter=',')
+        reader = csv.reader(f)
+        rowcount = 0
+        wb=Workbook()
+        dest_filename = csvfile[:-4] + '.xlsx'
+        ws = wb.worksheets[0]
+        ws.title = "Table1"
+
+        for row_index, row in enumerate(reader):
+            colcount=0
+            for column_index, cell in enumerate(row):
+                column_letter = get_column_letter((column_index + 1))
+                ws.cell(row_index + 1, column_index+1, cell)
+                #ws.cell('%s%s' % (column_letter, (row_index + 1))).value = cell
+                colcount = colcount + 1
+            rowcount = rowcount + 1
+        range='A1:' + column_letter + str(rowcount)
+
+        wb.save(filename=dest_filename)
+        wb.close()
+        f.close()
+
+        # Delete csv file
         silentremove(csvfile)
+        filedata[0] = rowcount
+        filedata[1] = colcount - 1
+
+        # Create Table in Excel
+        createtable(dest_filename, range)
+    return filedata
+
+def createtable(filename, range):
+    open_file = load_workbook(filename)
+    ws = open_file.worksheets[0]
+    tab=Table(displayName="Table1",ref=range)
+    style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
+                           showLastColumn=False, showRowStripes=True, showColumnStripes=True)
+    tab.tableStyleInfo = style
+    ws.add_table(tab)
+
+    open_file.save(filename)
+    open_file.close()
+
 
 
 def importFromJira():
@@ -300,7 +348,8 @@ def main():
     #List_all_Fields()
     #worklog_trial()
     #3listallTeams()
-    coneverttoxls()
+    a= coneverttoxls('JiraIssues.csv')
+    print (a)
 
 if __name__ == '__main__':
     main()

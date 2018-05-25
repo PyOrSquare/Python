@@ -7,8 +7,7 @@ try:
     from openpyxl.cell import get_column_letter
 except ImportError:
     from openpyxl.utils import get_column_letter
-
-
+import warnings
 import datetime
 import time
 import errno
@@ -16,16 +15,34 @@ import os
 import fileinput
 import glob
 import csv
-
+import ssl
+import urllib3
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
 project = "DDNZ"
 jql = 'project = "' + project + '"'
-SprintExtract = project + "_Sprints.csv"
-JiraExtract = project + "_JiraIssues.csv"
-WorkLogExtract = project + "_WorkLogs.csv"
+SprintExtract = project + "_Sprints"
+JiraExtract = project + "_JiraIssues"
+WorkLogExtract = project + "_WorkLogs"
 date = time.strftime('%Y%m%d%H%M%S')
+xlext = '.xlsx'
+csvext = '.csv'
+
+# Jira Issue field list
+FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
+                 'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
+                 'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008']
+
+# Sprint field list
+SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'completeDate', 'sequence']
+
+# Sprints: Fields to removed
+spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'completeDate=', 'sequence=']
+
+# Work Log field list
+WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds','runningremainingestimate','totalremaining', 'cummtimespent']
 
 # ----- PARAMETERS ------>
 
@@ -35,8 +52,8 @@ def get_jira_admin_auth():
     serverName = 'https://jira.vectorams.co.nz'
     userName = 'kannanr'
     passwd = 'Password01'
-    return JIRA(basic_auth=(userName, passwd),
-                server='https://jira.vectorams.co.nz')
+    option = {'server': serverName,'verify':False}
+    return JIRA(options = option, basic_auth=(userName, passwd))
 
 
 def setUp():
@@ -45,11 +62,15 @@ def setUp():
 
 # Writes to csv and converts into Excel
 def writecsv(data, filename, fieldNames):
+    filename = filename + csvext
     csv = open(filename, "a")
     csv.write(data)
     csv.close()
 
-    coneverttoxls(filename)
+    if filename.__contains__('Sprint'):
+    # Cleanse Sprint file
+        for rf in spfieldremove:
+            replacestrinfile(filename, rf, '')
     return;
 
 # Rename file if exist
@@ -83,7 +104,7 @@ def replacestrinfile(filename, text_to_search, replacement_text):
             print(line.replace(text_to_search, replacement_text), end='')
 
 # Convert csv to Excel file
-def coneverttoxls(filename):
+def coneverttoxls():
     filecount=0
     filedata=[0,0]
     for csvfile in glob.glob(os.path.join('.', '*.csv')):
@@ -92,7 +113,7 @@ def coneverttoxls(filename):
         reader = csv.reader(f)
         rowcount = 0
         wb=Workbook()
-        dest_filename = csvfile[:-4] + '.xlsx'
+        dest_filename = csvfile[:-4] + xlext
         ws = wb.worksheets[0]
         ws.title = "Table1"
 
@@ -132,28 +153,21 @@ def createtable(filename, range):
     open_file.close()
 
 
-
 def importFromJira():
     print('Started..' + str(datetime.datetime.time(datetime.datetime.now())))
 
     # Delete Extract files if already exist
-    silentrename(JiraExtract)
-    silentrename(SprintExtract)
-    silentrename(WorkLogExtract)
+    silentrename(JiraExtract + xlext)
+    silentrename(SprintExtract + xlext)
+    silentrename(WorkLogExtract + xlext)
 
-    FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
-                 'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
-                 'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008']
-
+    # Get Jira fields in Array
     flist = ','.join(FieldList)
-    #flist = flist.replace('customfield_10000,', '')
 
-    WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds','runningremainingestimate','totalremaining', 'cummtimespent']
+    # Work Log fields in Array
     wlflist = ','.join(WLFieldList)
 
-    SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'completeDate', 'sequence']
-    spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'completeDate=', 'sequence=']
+    #Sprint fields in Array
     spflist = ','.join(SPFieldList)
 
     # Add Header to Extracts
@@ -262,8 +276,11 @@ def importFromJira():
             writecsv(spConcat, SprintExtract, spflist)
 
             # Cleanse Sprint file
-            for rf in spfieldremove:
-                replacestrinfile(SprintExtract, rf, '')
+            #for rf in spfieldremove:
+            #    replacestrinfile(SprintExtract, rf, '')
+
+            coneverttoxls()
+
             # **** GET JIRA ISSUES  **** ---->
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
 
@@ -278,7 +295,7 @@ def getWorkLog(issuekey, worklogs, origestimate, remestimate):
             cumremestimate = (os - int(w.timeSpentSeconds))
         cummtimespent = cummtimespent + int(w.timeSpentSeconds)
 
-        print('{0}:{1}:{2}:{3}'.format(w.timeSpentSeconds, os, cumremestimate, remestimate ))
+        #print('{0}:{1}:{2}:{3}'.format(w.timeSpentSeconds, os, cumremestimate, remestimate ))
 
         retStr = issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(w.created) + ',' + w.author.name + ',' + str(
             w.timeSpentSeconds) + ',' + str(cumremestimate) + ',' + str(remestimate) + ',' + str(cummtimespent) + '\n'
@@ -343,13 +360,14 @@ def listallTeams():
     #    print(p.raw['fields'][f])
 
 def main():
-    #importFromJira()
+    importFromJira()
     #listallboards()
     #List_all_Fields()
     #worklog_trial()
     #3listallTeams()
-    a= coneverttoxls('JiraIssues.csv')
-    print (a)
+    #a= coneverttoxls('JiraIssues.csv')
+    #print (a)
 
 if __name__ == '__main__':
+    urllib3.disable_warnings()
     main()

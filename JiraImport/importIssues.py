@@ -140,6 +140,7 @@ def coneverttoxls():
         createtable(dest_filename, range)
     return filedata
 
+# Convert data in Excel as Table to avoid structure issue in Power BI when more fields are added or removed
 def createtable(filename, range):
     open_file = load_workbook(filename)
     ws = open_file.worksheets[0]
@@ -152,7 +153,16 @@ def createtable(filename, range):
     open_file.save(filename)
     open_file.close()
 
+# Cleanse Sprint csv file
+def cleansesprintfile():
+    # Cleanse Sprint file
+    try:
+        for rf in spfieldremove:
+            replacestrinfile(SprintExtract + csvext, rf, '')
+    except FileNotFoundError:
+        print('Sprint file cleansing failed')
 
+# Import all issues from Jira
 def importFromJira():
     print('Started..' + str(datetime.datetime.time(datetime.datetime.now())))
 
@@ -275,18 +285,16 @@ def importFromJira():
             # Write Sprint details to File
             writecsv(spConcat, SprintExtract, spflist)
 
-    # Cleanse Sprint file
-    try:
-        for rf in spfieldremove:
-            replacestrinfile(SprintExtract, rf, '')
-    except FileNotFoundError:
-        print('Sprint file cleansing failed')
+    # Cleanse the Sprint file
+    cleansesprintfile()
 
+    # Convert all csv files into Excel
     coneverttoxls()
 
             # **** GET JIRA ISSUES  **** ---->
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
 
+# Get work log for the given issue
 def getWorkLog(issuekey, worklogs, origestimate, remestimate):
     os = origestimate
     cumremestimate = os
@@ -307,7 +315,6 @@ def getWorkLog(issuekey, worklogs, origestimate, remestimate):
             os  = cumremestimate
     return retStr
 
-
 def worklog_trial():
     jira = setUp()
     issue = jira.issue('TECHOVER-129')
@@ -321,7 +328,6 @@ def worklog_trial():
             w.timeSpentSeconds) + ',' + w.timeSpent + '\n'
     print(wlConcat)
     # print (worklogs)
-
 
 def List_all_Fields():
     jira = setUp()
@@ -343,7 +349,6 @@ def listallboards():
 
     #for f in p.raw['fields']:
     #    print(p.raw['fields'][f])
-
 
 def listallTeams():
     jira=setUp()
@@ -370,6 +375,8 @@ def main():
     #listallTeams()
     #a= coneverttoxls('JiraIssues.csv')
     #createtable('DDNZ.xlsx','A1:B5')
+    #cleansesprintfile()
+
 
 if __name__ == '__main__':
     urllib3.disable_warnings()

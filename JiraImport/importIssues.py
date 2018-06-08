@@ -21,7 +21,7 @@ from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, W
 
 # <!----- PARAMETERS ------
 project = "DDNZ"
-jql = 'project = "' + project + '"'
+jql = 'project = "' + project + '" OR project = SPRINTOVER'
 SprintExtract = project + "_Sprints"
 JiraExtract = project + "_JiraIssues"
 WorkLogExtract = project + "_WorkLogs"
@@ -42,7 +42,8 @@ SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'complete
 spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'completeDate=', 'sequence=']
 
 # Work Log field list
-WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds','runningremainingestimate','totalremaining', 'cummtimespent']
+WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds']
+#,'runningremainingestimate','totalremaining', 'cummtimespent'
 
 # ----- PARAMETERS ------>
 
@@ -221,7 +222,7 @@ def importFromJira():
                 if issue.raw['fields']['aggregatetimeestimate'] is not None:
                     remestimate = int(issue.raw['fields']['aggregatetimeestimate'])
 
-                wl = getWorkLog(issue.key, worklogs, origestimate, remestimate)
+                wl = getWorkLog(issue.key, worklogs)
                 #print('{0}:{1}:{2}'.format(issue.key, origestimate, remestimate))
 
                 if wl is not None:
@@ -295,24 +296,24 @@ def importFromJira():
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
 
 # Get work log for the given issue
-def getWorkLog(issuekey, worklogs, origestimate, remestimate):
-    os = origestimate
-    cumremestimate = os
-    cummtimespent = 0
+def getWorkLog(issuekey, worklogs):
+    #os = origestimate
+    #cumremestimate = os
+    #cummtimespent = 0
     retStr =''
     for w in worklogs:
         # print (w.issueId)
-        if origestimate > 0 :
-            cumremestimate = (os - int(w.timeSpentSeconds))
-        cummtimespent = cummtimespent + int(w.timeSpentSeconds)
+        #if origestimate > 0 :
+        #    cumremestimate = (os - int(w.timeSpentSeconds))
+        #cummtimespent = cummtimespent + int(w.timeSpentSeconds)
 
         #print('{0}:{1}:{2}:{3}'.format(w.timeSpentSeconds, os, cumremestimate, remestimate ))
 
-        retStr = issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(w.created) + ',' + w.author.name + ',' + str(
-            w.timeSpentSeconds) + ',' + str(cumremestimate) + ',' + str(remestimate) + ',' + str(cummtimespent) + '\n'
-
-        if origestimate > 0 :
-            os  = cumremestimate
+        retStr = issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(w.started) + ',' + w.author.name + ',' + str(
+            w.timeSpentSeconds) + ',' + '\n'
+        #+ str(cumremestimate) + ',' + str(remestimate) + ',' + str(cummtimespent)
+        #if origestimate > 0 :
+        #    os  = cumremestimate
     return retStr
 
 def worklog_trial():

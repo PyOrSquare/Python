@@ -15,16 +15,19 @@ import os
 import fileinput
 import glob
 import csv
-import ssl
+import requests
 import urllib3
+import json
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
 project = "DDNZ"
-jql = 'project = "' + project + '" OR project = SPRINTOVER'
+#jql = 'project = "' + project + '" OR project = SPRINTOVER'
+jql='issuekey = SWAG2-3600'
 SprintExtract = project + "_Sprints"
 JiraExtract = project + "_JiraIssues"
 WorkLogExtract = project + "_WorkLogs"
+TeamMemberExtract = 'TeamMembers'
 date = time.strftime('%Y%m%d%H%M%S')
 xlext = '.xlsx'
 csvext = '.csv'
@@ -44,6 +47,9 @@ spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'co
 # Work Log field list
 WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds']
 #,'runningremainingestimate','totalremaining', 'cummtimespent'
+
+#Members fields list
+MembersFieldList =['id', 'name', 'key', 'displayname', 'availability', 'team', 'teamname']
 
 # ----- PARAMETERS ------>
 
@@ -79,17 +85,17 @@ def silentrename(filename):
     try:
         os.rename(filename, filename + '_' + date)
         os.remove(filename)
-    except OSError as e:  # this would be "except OSError, e:" before Python 2.6
-        if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
-            raise  # re-raise exception if a different error occurred
+    except OSError as e:                    # this would be "except OSError, e:" before Python 2.6
+        if e.errno != errno.ENOENT:         # errno.ENOENT = no such file or directory
+            raise                           # re-raise exception if a different error occurred
 
 # Delete a file is exist
 def silentremove(filename):
     try:
         os.remove(filename)
-    except OSError as e:  # this would be "except OSError, e:" before Python 2.6
-        if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
-            raise  # re-raise exception if a different error occurred
+    except OSError as e:                    # this would be "except OSError, e:" before Python 2.6
+        if e.errno != errno.ENOENT:         # errno.ENOENT = no such file or directory
+            raise                           # re-raise exception if a different error occurred
 
 # Insert header line in the given file
 def writeHeader(filename, line):
@@ -171,7 +177,7 @@ def importFromJira():
     silentrename(JiraExtract + xlext)
     silentrename(SprintExtract + xlext)
     silentrename(WorkLogExtract + xlext)
-
+    silentrename(TeamMemberExtract + xlext)
     # Get Jira fields in Array
     flist = ','.join(FieldList)
 
@@ -181,10 +187,15 @@ def importFromJira():
     #Sprint fields in Array
     spflist = ','.join(SPFieldList)
 
+
+    #TeamMembers fields in Array
+    tmflist = ','.join(MembersFieldList)
+
     # Add Header to Extracts
     writeHeader(JiraExtract + csvext, 'issuekey,' + flist)
     writeHeader(SprintExtract + csvext, spflist)
     writeHeader(WorkLogExtract + csvext, wlflist)
+    writeHeader(TeamMemberExtract + csvext, tmflist)
 
     jira = setUp()
     
@@ -286,8 +297,11 @@ def importFromJira():
             # Write Sprint details to File
             writecsv(spConcat, SprintExtract, spflist)
 
-    # Cleanse the Sprint file
+     # Cleanse the Sprint file
     cleansesprintfile()
+
+    # Create member file
+    createTeamMembercsv()
 
     # Convert all csv files into Excel
     coneverttoxls()
@@ -315,6 +329,73 @@ def getWorkLog(issuekey, worklogs):
         #if origestimate > 0 :
         #    os  = cumremestimate
     return retStr
+
+
+# Get Teams from Jira
+def TeamListGet():
+    JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
+    JiraBaseUrl = JIRA_BASE_URL
+    team_list = []
+    JIRAsession = requests.session()
+    JIRAsession.auth = ("kannanr","Password01")
+
+    # Get all Teams names
+    team_url = JiraBaseUrl + '/rest/tempo-teams/1/team'
+    url = team_url
+    #print('team url:', url)
+
+    r = JIRAsession.get(url)
+    if r.status_code == 200:
+        json_return = json.loads(r.text)
+
+        # create clean Team list
+        for entry in json_return:
+            #print(entry)
+            team_list.append({'id': entry['id'],
+                               'name': entry['name'],
+                               'summary': entry['summary']})
+        return team_list
+
+# Get team members by Team Id
+def TeamMembersGet(teamId, teamName):
+    JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
+    JiraBaseUrl = JIRA_BASE_URL
+    jira_sub_dict = {}
+    jira_parent_dict = {}
+    #member_list = []
+    JIRAsession = requests.session()
+    JIRAsession.auth = ("kannanr","Password01")
+
+    # Get all members details with Team Id
+    team_url = JiraBaseUrl + '/rest/tempo-teams/2/team/{0}/member?type=user'
+    url = team_url.format(teamId)
+    #print('team url:', url)
+    member_list=''
+    r = JIRAsession.get(url)
+    if r.status_code == 200:
+        json_return = json.loads(r.text)
+
+        # create clean Team list
+        for entry in json_return:
+            #print(entry)
+            member_list = member_list + '\n' + str(entry['id']) + ',' + \
+                          entry['member']['name'] + ',' + \
+                          str(entry['member']['key']) + ',' + \
+                          entry['member']['displayname'] + ',' + \
+                          str(entry['membershipBean']['availability']) + ',' + str(teamId) + ',' + teamName
+
+        #print (member_list)
+        return member_list
+
+# Create Team Member csv
+def createTeamMembercsv():
+    team_list = TeamListGet()
+    for team in team_list:
+        # print(team['id'])
+        # list.append(TeamMembersGet(team['id'], team['name']))
+        #print(team['name'])
+        data = TeamMembersGet(team['id'], team['name'])
+        writecsv(data, TeamMemberExtract, MembersFieldList)
 
 def worklog_trial():
     jira = setUp()

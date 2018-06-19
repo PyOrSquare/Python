@@ -21,9 +21,8 @@ import json
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
-project = "DDNZ"
-#jql = 'project = "' + project + '" OR project = SPRINTOVER'
-jql='issuekey = SWAG2-3600'
+
+JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
 SprintExtract = project + "_Sprints"
 JiraExtract = project + "_JiraIssues"
 WorkLogExtract = project + "_WorkLogs"
@@ -36,7 +35,7 @@ csvext = '.csv'
 FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008', 'summary', 'priority']
 
 # Sprint field list
 SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'completeDate', 'sequence']
@@ -56,7 +55,9 @@ MembersFieldList =['id', 'name', 'key', 'displayname', 'availability', 'team', '
 def get_jira_admin_auth():
     # **** Credentials **** #
     # jira = JIRA(basic_auth=(userName, passwd), server='https://jira.vectorams.co.nz')
-    serverName = 'https://jira.vectorams.co.nz'
+    #serverName = 'https://jira.vectorams.co.nz'
+
+    serverName = JIRA_BASE_URL
     userName = 'kannanr'
     passwd = 'Password01'
     option = {'server': serverName,'verify':False}
@@ -66,6 +67,12 @@ def get_jira_admin_auth():
 def setUp():
     jira = get_jira_admin_auth()
     return jira
+
+def Jsetup():
+    JIRAsession = requests.session()
+    JIRAsession.auth = ("kannanr", "Password01")
+    return JIRAsession
+
 
 # Writes to csv and converts into Excel
 def writecsv(data, filename, fieldNames):
@@ -170,8 +177,10 @@ def cleansesprintfile():
         print('Sprint file cleansing failed')
 
 # Import all issues from Jira
-def importFromJira():
-    print('Started..' + str(datetime.datetime.time(datetime.datetime.now())))
+def importFromJira(project):
+    #project = "SWAG2"
+    jql = 'project = "' + project + '" OR project = SPRINTOVER'
+    print('Started..' + project + "--" + str(datetime.datetime.time(datetime.datetime.now())))
 
     # Delete Extract files if already exist
     silentrename(JiraExtract + xlext)
@@ -219,7 +228,7 @@ def importFromJira():
             spConcat=''
 
             for issue in issues:
-                print(issue.key)
+                #print(issue.key)
                 worklogs = jira.worklogs(issue.key)
 
                 origestimate = 0
@@ -323,7 +332,7 @@ def getWorkLog(issuekey, worklogs):
 
         #print('{0}:{1}:{2}:{3}'.format(w.timeSpentSeconds, os, cumremestimate, remestimate ))
 
-        retStr = issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(w.started) + ',' + w.author.name + ',' + str(
+        retStr = retStr + issuekey + ',' + str(w.id) + ',' + str(w.issueId) + ',' + str(w.started) + ',' + w.author.name + ',' + str(
             w.timeSpentSeconds) + ',' + '\n'
         #+ str(cumremestimate) + ',' + str(remestimate) + ',' + str(cummtimespent)
         #if origestimate > 0 :
@@ -359,7 +368,7 @@ def TeamListGet():
 # Get team members by Team Id
 def TeamMembersGet(teamId, teamName):
     JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-    JiraBaseUrl = JIRA_BASE_URL
+    JiraBaseUrl = 'https://jira.vectorams.co.nz'
     jira_sub_dict = {}
     jira_parent_dict = {}
     #member_list = []
@@ -387,6 +396,27 @@ def TeamMembersGet(teamId, teamName):
         #print (member_list)
         return member_list
 
+# Get all Sprints in a Project
+def GetSprintsList(projectKey):
+    JiraBaseUrl = JIRA_BASE_URL
+
+    JIRAsession = Jsetup()
+
+    team_url = JiraBaseUrl + '/rest/greenhopper/latest/rapidviews/list?projectKey={0}'
+    url = team_url.format(projectKey)
+
+    sprint_list = ''
+    r = JIRAsession.get(url)
+    if r.status_code == 200:
+        json_return = json.loads(r.text)
+        print(json_return)
+        # create clean Team list
+        for entry in json_return:
+            sprint_list = entry['views']
+
+        print (sprint_list)
+        #return member_list
+
 # Create Team Member csv
 def createTeamMembercsv():
     team_list = TeamListGet()
@@ -413,7 +443,7 @@ def worklog_trial():
 
 def List_all_Fields():
     jira = setUp()
-    issue = jira.issue('TECHOVER-129')
+    issue = jira.issue('SWAG2-10177')
     for field_name in issue.raw['fields']:
         # print("Field:", field_name, "Value:", issue.raw['fields'][field_name])
         print("Field:{0}, Value:{1}".format(field_name, issue.raw['fields'][field_name]))
@@ -450,12 +480,19 @@ def listallTeams():
     #    print(p.raw['fields'][f])
 
 def main():
-    importFromJira()
+
+    #Project list
+    projectList = ["DDNZ","SWAG2","SWAG3"]
+    for project in projectList:
+        importFromJira(project)
+
+    #listallTeams()
+    #a= coneverttoxls('JiraIssues.csv')
+
+    #GetSprintsList('DDNZ')
     #listallboards()
     #List_all_Fields()
     #worklog_trial()
-    #listallTeams()
-    #a= coneverttoxls('JiraIssues.csv')
     #createtable('DDNZ.xlsx','A1:B5')
     #cleansesprintfile()
 

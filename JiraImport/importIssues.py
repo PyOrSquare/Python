@@ -23,7 +23,7 @@ from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, W
 # <!----- PARAMETERS ------
 
 JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-
+#JiraBaseUrl = 'https://jira.vectorams.co.nz'
 SprintExtract = "Sprints"
 JiraExtract = "JiraIssues"
 WorkLogExtract = "WorkLogs"
@@ -58,27 +58,19 @@ ReleasesFieldList = 'self, id, description, name, archived, released, projectId'
 
 # ----- PARAMETERS ------>
 
-def get_jira_admin_auth():
-    # **** Credentials **** #
-    # jira = JIRA(basic_auth=(userName, passwd), server='https://jira.vectorams.co.nz')
-    #serverName = 'https://jira.vectorams.co.nz'
+def SessionSetup(inJiraConnect):
+    # If inJiraConnect > 0 Then Connect to Jira Else connect with API request session
+    if (inJiraConnect > 0):
+        userName = 'kannanr'
+        passwd = 'Password01'
+        option = {'server': JIRA_BASE_URL, 'verify': False}
+        retSession = JIRA(options=option, basic_auth=(userName, passwd))
+    else:
+        JIRAsession = requests.session()
+        JIRAsession.auth = ("kannanr", "Password01")
+        retSession = JIRAsession
 
-    serverName = JIRA_BASE_URL
-    userName = 'kannanr'
-    passwd = 'Password01'
-    option = {'server': serverName,'verify':False}
-    return JIRA(options = option, basic_auth=(userName, passwd))
-
-
-def setUp():
-    jira = get_jira_admin_auth()
-    return jira
-
-
-def Jsetup():
-    JIRAsession = requests.session()
-    JIRAsession.auth = ("kannanr", "Password01")
-    return JIRAsession
+    return retSession
 
 
 # Writes to csv and converts into Excel
@@ -230,7 +222,7 @@ def importFromJira(project):
     #jql = 'project = "' + project + '" OR project = SPRINTOVER'
     jql = 'project = "' + project + '"'
     print('Started..' + project + "--" + str(datetime.datetime.time(datetime.datetime.now())))
-    jira = setUp()
+    jira = SessionSetup(1)
 
     SprintExtract = "Sprints"
     JiraExtract = "JiraIssues"
@@ -370,14 +362,14 @@ def getWorkLog(issuekey, worklogs):
 
 # Get Teams from Jira
 def TeamListGet():
-    JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-    JiraBaseUrl = JIRA_BASE_URL
     team_list = []
-    JIRAsession = requests.session()
-    JIRAsession.auth = ("kannanr","Password01")
+    #JIRAsession = requests.session()
+    #JIRAsession.auth = ("kannanr","Password01")
+
+    JIRAsession = SessionSetup(0)
 
     # Get all Teams names
-    team_url = JiraBaseUrl + '/rest/tempo-teams/1/team'
+    team_url = JIRA_BASE_URL + '/rest/tempo-teams/1/team'
     url = team_url
     #print('team url:', url)
 
@@ -387,7 +379,6 @@ def TeamListGet():
 
         # create clean Team list
         for entry in json_return:
-            #print(entry)
             team_list.append({'id': entry['id'],
                                'name': entry['name'],
                                'summary': entry['summary']})
@@ -396,18 +387,12 @@ def TeamListGet():
 
 # Get team members by Team Id
 def TeamMembersGet(teamId, teamName):
-    JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-    JiraBaseUrl = 'https://jira.vectorams.co.nz'
-    jira_sub_dict = {}
-    jira_parent_dict = {}
-    #member_list = []
-    JIRAsession = requests.session()
-    JIRAsession.auth = ("kannanr","Password01")
+    JIRAsession = SessionSetup(0)
 
     # Get all members details with Team Id
-    team_url = JiraBaseUrl + '/rest/tempo-teams/2/team/{0}/member?type=user'
+    team_url = JIRA_BASE_URL + '/rest/tempo-teams/2/team/{0}/member?type=user'
     url = team_url.format(teamId)
-    #print('team url:', url)
+
     member_list=''
     r = JIRAsession.get(url)
     if r.status_code == 200:
@@ -415,25 +400,23 @@ def TeamMembersGet(teamId, teamName):
 
         # create clean Team list
         for entry in json_return:
-            #print(entry)
+            
             member_list = member_list + '\n' + str(entry['id']) + ',' + \
                           entry['member']['name'] + ',' + \
                           str(entry['member']['key']) + ',' + \
                           entry['member']['displayname'] + ',' + \
                           str(entry['membershipBean']['availability']) + ',' + str(teamId) + ',' + teamName
 
-        #print (member_list)
         return member_list
 
 
 # Get team members by Team Id
 def GetReleases(ProjectName):
-    JiraBaseUrl = 'https://jira.vectorams.co.nz'
-    JIRAsession = requests.session()
-    JIRAsession.auth = ("kannanr","Password01")
+
+    JIRAsession = SessionSetup(0)
 
     # Get all members details with Team Id
-    release_url = JiraBaseUrl + '/rest/api/2/project/{0}/versions'
+    release_url = JIRA_BASE_URL + '/rest/api/2/project/{0}/versions'
     url = release_url.format(ProjectName)
 
     release_list=''
@@ -453,11 +436,10 @@ def GetReleases(ProjectName):
 
 # Get all Sprints in a Project
 def GetSprintsList(projectKey):
-    JiraBaseUrl = JIRA_BASE_URL
 
-    JIRAsession = Jsetup()
+    JIRAsession = SessionSetup(0)
 
-    team_url = JiraBaseUrl + '/rest/greenhopper/latest/rapidviews/list?projectKey={0}'
+    team_url = JIRA_BASE_URL + '/rest/greenhopper/latest/rapidviews/list?projectKey={0}'
     url = team_url.format(projectKey)
 
     sprint_list = ''
@@ -507,14 +489,14 @@ def executeExtractProcess():
     cleansesprintfile(SprintExtract)
 
     # Create member file
-    #createTeamMembercsv(TeamMemberExtract)
+    createTeamMembercsv(TeamMemberExtract)
 
     # Convert all csv files into Excel
     coneverttoxls()
 
 
 def worklog_trial():
-    jira = setUp()
+    jira = SessionSetup(1)
     issue = jira.issue('TECHOVER-129')
 
     worklogs = jira.worklogs(issue)
@@ -529,7 +511,7 @@ def worklog_trial():
 
 
 def List_all_Fields():
-    jira = setUp()
+    jira = SessionSetup(1)
     issue = jira.issue('SWAG2-10177')
     for field_name in issue.raw['fields']:
         # print("Field:", field_name, "Value:", issue.raw['fields'][field_name])
@@ -537,7 +519,7 @@ def List_all_Fields():
 
 
 def listallboards():
-    jira=setUp()
+    jira=SessionSetup(1)
     issue = jira.issue('SWAG2-2522')
     jt=jira.transitions(issue)
     p=jira.project(issue.fields.project)
@@ -552,7 +534,7 @@ def listallboards():
 
 
 def listallTeams():
-    jira=setUp()
+    jira = SessionSetup(1)
     issue = jira.issue('DDNZ-1077')
     # Fetch all fields
     allfields = jira.fields()
@@ -573,7 +555,7 @@ def main():
 
     # listallTeams()
     #a= coneverttoxls('JiraIssues.csv')
-
+    #createTeamMembercsv('TeamMember')
     executeExtractProcess()
     #GetSprintsList('DDNZ')
     #listallboards()

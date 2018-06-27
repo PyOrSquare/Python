@@ -18,6 +18,8 @@ import csv
 import requests
 import urllib3
 import json
+import sys, getopt
+
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
@@ -60,14 +62,15 @@ ReleasesFieldList = 'self, id, description, name, archived, released, projectId'
 
 def SessionSetup(inJiraConnect):
     # If inJiraConnect > 0 Then Connect to Jira Else connect with API request session
+    userName = UNAME
+    passwd = PASSWD
+
     if (inJiraConnect > 0):
-        userName = 'kannanr'
-        passwd = 'Password01'
         option = {'server': JIRA_BASE_URL, 'verify': False}
         retSession = JIRA(options=option, basic_auth=(userName, passwd))
     else:
         JIRAsession = requests.session()
-        JIRAsession.auth = ("kannanr", "Password01")
+        JIRAsession.auth = (userName, passwd)
         retSession = JIRAsession
 
     return retSession
@@ -363,8 +366,6 @@ def getWorkLog(issuekey, worklogs):
 # Get Teams from Jira
 def TeamListGet():
     team_list = []
-    #JIRAsession = requests.session()
-    #JIRAsession.auth = ("kannanr","Password01")
 
     JIRAsession = SessionSetup(0)
 
@@ -551,20 +552,48 @@ def listallTeams():
     #    print(p.raw['fields'][f])
 
 
-def main():
+def main(argv):
 
-    # listallTeams()
-    #a= coneverttoxls('JiraIssues.csv')
-    #createTeamMembercsv('TeamMember')
-    executeExtractProcess()
-    #GetSprintsList('DDNZ')
-    #listallboards()
-    #List_all_Fields()
-    #worklog_trial()
-    #createtable('DDNZ.xlsx','A1:B5')
-    #cleansesprintfile()
+    userName = ''
+    password = ''
+    try:
+        opts, args = getopt.getopt(argv, "hu:p:", ["uname=", "pass="])
+    except getopt.GetoptError:
+        print ('test.py -u <username> -p <password>')
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print ('test.py -u <username> -p <password>')
+            sys.exit()
+        elif opt in ("-u", "--uname"):
+            userName = arg
+        elif opt in ("-p", "--pass"):
+            password = arg
+
+    if not userName or not password :
+        print('test.py -u <username> -p <password>')
+        sys.exit()
+    else:
+        global UNAME
+        global PASSWD
+
+        UNAME=userName
+        PASSWD=password
+
+        executeExtractProcess()
+
+        # --- Test Workspace --- #
+        #listallTeams()
+        #a= coneverttoxls('JiraIssues.csv')
+        #createTeamMembercsv('TeamMember')
+        #GetSprintsList('DDNZ')
+        #listallboards()
+        #List_all_Fields()
+        #worklog_trial()
+        #createtable('DDNZ.xlsx','A1:B5')
+        #cleansesprintfile()
 
 
 if __name__ == '__main__':
     urllib3.disable_warnings()
-    main()
+    main(sys.argv[1:])

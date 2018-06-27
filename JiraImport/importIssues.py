@@ -23,10 +23,13 @@ from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, W
 # <!----- PARAMETERS ------
 
 JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-SprintExtract = project + "_Sprints"
-JiraExtract = project + "_JiraIssues"
-WorkLogExtract = project + "_WorkLogs"
+
+SprintExtract = "Sprints"
+JiraExtract = "JiraIssues"
+WorkLogExtract = "WorkLogs"
+ReleasesExtract = "Releases"
 TeamMemberExtract = 'TeamMembers'
+
 date = time.strftime('%Y%m%d%H%M%S')
 xlext = '.xlsx'
 csvext = '.csv'
@@ -35,7 +38,7 @@ csvext = '.csv'
 FieldList = ['issuetype', 'project', 'status', 'resolution', 'created', 'timeestimate',
                  'aggregatetimeoriginalestimate', 'aggregatetimeestimate',
                  'timespent', 'aggregatetimespent', 'resolutiondate', 'customfield_10000', 'customfield_10001',
-                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008', 'summary', 'priority']
+                 'customfield_11412', 'customfield_10103', 'customfield_10600','fixVersions', 'customfield_10008', 'summary', 'priority', 'customfield_10400']
 
 # Sprint field list
 SPFieldList = ['rapidViewId', 'state', 'name', 'startDate', 'endDate', 'completeDate', 'sequence']
@@ -47,8 +50,11 @@ spfieldremove= ['rapidViewId=', 'state=', 'name=', 'startDate=', 'endDate=', 'co
 WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSeconds']
 #,'runningremainingestimate','totalremaining', 'cummtimespent'
 
-#Members fields list
+# Members fields list
 MembersFieldList =['id', 'name', 'key', 'displayname', 'availability', 'team', 'teamname']
+
+# Releases Fields List
+ReleasesFieldList = 'self, id, description, name, archived, released, projectId'
 
 # ----- PARAMETERS ------>
 
@@ -68,6 +74,7 @@ def setUp():
     jira = get_jira_admin_auth()
     return jira
 
+
 def Jsetup():
     JIRAsession = requests.session()
     JIRAsession.auth = ("kannanr", "Password01")
@@ -75,7 +82,7 @@ def Jsetup():
 
 
 # Writes to csv and converts into Excel
-def writecsv(data, filename, fieldNames):
+def writecsv(data, filename):
     filename = filename + csvext
     csv = open(filename, "a")
     csv.write(data)
@@ -87,6 +94,7 @@ def writecsv(data, filename, fieldNames):
     #        replacestrinfile(filename, rf, '')
     return;
 
+
 # Rename file if exist
 def silentrename(filename):
     try:
@@ -96,6 +104,7 @@ def silentrename(filename):
         if e.errno != errno.ENOENT:         # errno.ENOENT = no such file or directory
             raise                           # re-raise exception if a different error occurred
 
+
 # Delete a file is exist
 def silentremove(filename):
     try:
@@ -104,6 +113,7 @@ def silentremove(filename):
         if e.errno != errno.ENOENT:         # errno.ENOENT = no such file or directory
             raise                           # re-raise exception if a different error occurred
 
+
 # Insert header line in the given file
 def writeHeader(filename, line):
     with open(filename, 'w+') as f:
@@ -111,11 +121,13 @@ def writeHeader(filename, line):
         f.seek(0, 0)
         f.write(line.rstrip('\r\n') + '\n' + content)
 
+
 # Find and replace string in the given file
 def replacestrinfile(filename, text_to_search, replacement_text):
     with fileinput.FileInput(filename, inplace=True, backup='.bak') as file:
         for line in file:
             print(line.replace(text_to_search, replacement_text), end='')
+
 
 # Convert csv to Excel file
 def coneverttoxls():
@@ -154,6 +166,7 @@ def coneverttoxls():
         createtable(dest_filename, range)
     return filedata
 
+
 # Convert data in Excel as Table to avoid structure issue in Power BI when more fields are added or removed
 def createtable(filename, range):
     open_file = load_workbook(filename)
@@ -167,8 +180,9 @@ def createtable(filename, range):
     open_file.save(filename)
     open_file.close()
 
+
 # Cleanse Sprint csv file
-def cleansesprintfile():
+def cleansesprintfile(SprintExtract):
     # Cleanse Sprint file
     try:
         for rf in spfieldremove:
@@ -176,38 +190,52 @@ def cleansesprintfile():
     except FileNotFoundError:
         print('Sprint file cleansing failed')
 
-# Import all issues from Jira
-def importFromJira(project):
-    #project = "SWAG2"
-    jql = 'project = "' + project + '" OR project = SPRINTOVER'
-    print('Started..' + project + "--" + str(datetime.datetime.time(datetime.datetime.now())))
+
+# Rename Existing Extract with Timestamp and Create new extract file with Headers
+def prepareFiletoWrite():
 
     # Delete Extract files if already exist
     silentrename(JiraExtract + xlext)
     silentrename(SprintExtract + xlext)
     silentrename(WorkLogExtract + xlext)
     silentrename(TeamMemberExtract + xlext)
+    silentrename(ReleasesExtract + xlext)
+
     # Get Jira fields in Array
     flist = ','.join(FieldList)
 
     # Work Log fields in Array
     wlflist = ','.join(WLFieldList)
 
-    #Sprint fields in Array
+    # Sprint fields in Array
     spflist = ','.join(SPFieldList)
 
-
-    #TeamMembers fields in Array
+    # TeamMembers fields in Array
     tmflist = ','.join(MembersFieldList)
+
+    # Releases fields in Array
+    Relflist = ','.join(ReleasesFieldList)
 
     # Add Header to Extracts
     writeHeader(JiraExtract + csvext, 'issuekey,' + flist)
     writeHeader(SprintExtract + csvext, spflist)
     writeHeader(WorkLogExtract + csvext, wlflist)
     writeHeader(TeamMemberExtract + csvext, tmflist)
+    writeHeader(ReleasesExtract + csvext, ReleasesFieldList)
 
+
+# Import all issues from Jira
+def importFromJira(project):
+
+    #jql = 'project = "' + project + '" OR project = SPRINTOVER'
+    jql = 'project = "' + project + '"'
+    print('Started..' + project + "--" + str(datetime.datetime.time(datetime.datetime.now())))
     jira = setUp()
-    
+
+    SprintExtract = "Sprints"
+    JiraExtract = "JiraIssues"
+    WorkLogExtract = "WorkLogs"
+
     # <!---- **** GET JIRA ISSUES  ****
     block_size = 500
     block_num = 0
@@ -276,7 +304,15 @@ def importFromJira(project):
                                 concatStr = concatStr + ','
                         except TypeError:
                             concatStr = concatStr + ','
-
+                    # Rank
+                    elif field == 'customfield_10400':
+                        try:
+                            if (issue.raw['fields']['customfield_10400']!= '0'):
+                                concatStr = concatStr + issue.raw['fields'][field] + ','
+                            else:
+                                concatStr = concatStr + ','
+                        except TypeError:
+                            concatStr = concatStr + ','
                     # fixVersions {list}
                     elif field == 'fixVersions':
                         fixver=''
@@ -288,7 +324,7 @@ def importFromJira(project):
                             concatStr = concatStr + fixver + ','
                     else:
                         try:
-                            concatStr = concatStr + str(eval(f)) + ','
+                            concatStr = concatStr + str(eval(f)).replace(",", "") + ','
                         except TypeError:
                             concatStr = concatStr + ','
                         except AttributeError:
@@ -298,25 +334,17 @@ def importFromJira(project):
             # print(concatStr)
 
             # Write Jira Issues to File
-            writecsv(concatStr, JiraExtract, flist)
+            writecsv(concatStr, JiraExtract)
 
             # Write Work Logs to csv
-            writecsv(wlConcat, WorkLogExtract, wlflist)
+            writecsv(wlConcat, WorkLogExtract)
 
             # Write Sprint details to File
-            writecsv(spConcat, SprintExtract, spflist)
-
-     # Cleanse the Sprint file
-    cleansesprintfile()
-
-    # Create member file
-    createTeamMembercsv()
-
-    # Convert all csv files into Excel
-    coneverttoxls()
+            writecsv(spConcat, SprintExtract)
 
             # **** GET JIRA ISSUES  **** ---->
     print('Completed..' + str(datetime.datetime.time(datetime.datetime.now())))
+
 
 # Get work log for the given issue
 def getWorkLog(issuekey, worklogs):
@@ -365,6 +393,7 @@ def TeamListGet():
                                'summary': entry['summary']})
         return team_list
 
+
 # Get team members by Team Id
 def TeamMembersGet(teamId, teamName):
     JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
@@ -396,6 +425,32 @@ def TeamMembersGet(teamId, teamName):
         #print (member_list)
         return member_list
 
+
+# Get team members by Team Id
+def GetReleases(ProjectName):
+    JiraBaseUrl = 'https://jira.vectorams.co.nz'
+    JIRAsession = requests.session()
+    JIRAsession.auth = ("kannanr","Password01")
+
+    # Get all members details with Team Id
+    release_url = JiraBaseUrl + '/rest/api/2/project/{0}/versions'
+    url = release_url.format(ProjectName)
+
+    release_list=''
+
+    r = JIRAsession.get(url)
+    if r.status_code == 200:
+        json_return = json.loads(r.text)
+
+        # create Release list
+        for entry in json_return:
+            for fields in entry:
+                    release_list = release_list + str(entry[fields]) + ','
+            release_list = release_list + ',' + ProjectName + '\n'
+
+    return release_list
+
+
 # Get all Sprints in a Project
 def GetSprintsList(projectKey):
     JiraBaseUrl = JIRA_BASE_URL
@@ -417,15 +472,46 @@ def GetSprintsList(projectKey):
         print (sprint_list)
         #return member_list
 
+
 # Create Team Member csv
-def createTeamMembercsv():
+def createTeamMembercsv(TeamMemberExtract):
     team_list = TeamListGet()
     for team in team_list:
         # print(team['id'])
         # list.append(TeamMembersGet(team['id'], team['name']))
         #print(team['name'])
         data = TeamMembersGet(team['id'], team['name'])
-        writecsv(data, TeamMemberExtract, MembersFieldList)
+        writecsv(data, TeamMemberExtract)
+
+
+# Create Releases csv
+def createReleasescsv(ReleaseExtract, ProjectName):
+
+    data = GetReleases(ProjectName)
+    writecsv(data, ReleaseExtract)
+
+
+def executeExtractProcess():
+
+    #Backup old extracts and prepare new files
+    prepareFiletoWrite()
+
+    # Project list
+    projectList = ["DDNZ", "SWAG2", "SWAG3", "SPRINTOVER", "TECHOVER"]
+
+    for project in projectList:
+        importFromJira(project)
+        createReleasescsv(ReleasesExtract, project)
+
+    # Cleanse the Sprint file
+    cleansesprintfile(SprintExtract)
+
+    # Create member file
+    #createTeamMembercsv(TeamMemberExtract)
+
+    # Convert all csv files into Excel
+    coneverttoxls()
+
 
 def worklog_trial():
     jira = setUp()
@@ -441,12 +527,14 @@ def worklog_trial():
     print(wlConcat)
     # print (worklogs)
 
+
 def List_all_Fields():
     jira = setUp()
     issue = jira.issue('SWAG2-10177')
     for field_name in issue.raw['fields']:
         # print("Field:", field_name, "Value:", issue.raw['fields'][field_name])
         print("Field:{0}, Value:{1}".format(field_name, issue.raw['fields'][field_name]))
+
 
 def listallboards():
     jira=setUp()
@@ -461,6 +549,7 @@ def listallboards():
 
     #for f in p.raw['fields']:
     #    print(p.raw['fields'][f])
+
 
 def listallTeams():
     jira=setUp()
@@ -479,16 +568,13 @@ def listallTeams():
     #for f in p.raw['fields']:
     #    print(p.raw['fields'][f])
 
+
 def main():
 
-    #Project list
-    projectList = ["DDNZ","SWAG2","SWAG3"]
-    for project in projectList:
-        importFromJira(project)
-
-    #listallTeams()
+    # listallTeams()
     #a= coneverttoxls('JiraIssues.csv')
 
+    executeExtractProcess()
     #GetSprintsList('DDNZ')
     #listallboards()
     #List_all_Fields()

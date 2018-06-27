@@ -19,13 +19,14 @@ import requests
 import urllib3
 import json
 import sys, getopt
+from myconfig import *
 
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
 # <!----- PARAMETERS ------
-
+'''
 JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-#JiraBaseUrl = 'https://jira.vectorams.co.nz'
+
 SprintExtract = "Sprints"
 JiraExtract = "JiraIssues"
 WorkLogExtract = "WorkLogs"
@@ -57,7 +58,7 @@ MembersFieldList =['id', 'name', 'key', 'displayname', 'availability', 'team', '
 
 # Releases Fields List
 ReleasesFieldList = 'self, id, description, name, archived, released, projectId'
-
+'''
 # ----- PARAMETERS ------>
 
 def SessionSetup(inJiraConnect):

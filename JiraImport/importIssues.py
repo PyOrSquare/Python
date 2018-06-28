@@ -19,11 +19,14 @@ import requests
 import urllib3
 import json
 import sys, getopt
+#import configparser
 from myconfig import *
-
 from jira.resources import GreenHopperResource, TimeTracking, Resource, Issue, Worklog, CustomFieldOption
 
+date = time.strftime('%Y%m%d%H%M%S')
+
 # <!----- PARAMETERS ------
+# These parameters are imported from myconfig.py
 '''
 JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
 
@@ -581,7 +584,7 @@ def main(argv):
         UNAME=userName
         PASSWD=password
 
-        executeExtractProcess()
+        #executeExtractProcess()
 
         # --- Test Workspace --- #
         #listallTeams()
@@ -589,7 +592,7 @@ def main(argv):
         #createTeamMembercsv('TeamMember')
         #GetSprintsList('DDNZ')
         #listallboards()
-        #List_all_Fields()
+        List_all_Fields()
         #worklog_trial()
         #createtable('DDNZ.xlsx','A1:B5')
         #cleansesprintfile()

@@ -29,7 +29,7 @@ date = time.strftime('%Y%m%d%H%M%S')
 # These parameters are imported from myconfig.py
 '''
 JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
-
+ConfigFile ="config.dat"
 SprintExtract = "Sprints"
 JiraExtract = "JiraIssues"
 WorkLogExtract = "WorkLogs"
@@ -60,7 +60,7 @@ WLFieldList = ['issuekey','id', 'issueId', 'created','author.name', 'timeSpentSe
 MembersFieldList =['id', 'name', 'key', 'displayname', 'availability', 'team', 'teamname']
 
 # Releases Fields List
-ReleasesFieldList = 'self, id, description, name, archived, released, projectId'
+ReleasesFieldList = ['id', 'name', 'released', 'releaseDate', 'projectId']
 '''
 # ----- PARAMETERS ------>
 
@@ -220,7 +220,7 @@ def prepareFiletoWrite():
     writeHeader(SprintExtract + csvext, spflist)
     writeHeader(WorkLogExtract + csvext, wlflist)
     writeHeader(TeamMemberExtract + csvext, tmflist)
-    writeHeader(ReleasesExtract + csvext, ReleasesFieldList)
+    writeHeader(ReleasesExtract + csvext, Relflist)
 
 
 # Import all issues from Jira
@@ -432,8 +432,25 @@ def GetReleases(ProjectName):
 
         # create Release list
         for entry in json_return:
-            for fields in entry:
-                    release_list = release_list + str(entry[fields]) + ','
+            for fields in ReleasesFieldList:
+                if fields.__contains__('Date'):
+                    try:
+                        strval = str(entry[fields])
+                    except KeyError:
+                        try:
+                            strval = str(entry['userReleaseDate'])
+                        except KeyError:
+                            try:
+                                strval = str(entry['startDate'])
+                            except KeyError:
+                                try:
+                                    strval = str(entry['userStartDate'])
+                                except KeyError:
+                                    strval = ''
+                else:
+                    strval = str(entry[fields]).replace(',', '-')
+
+                release_list = release_list + strval + ','
             release_list = release_list + ',' + ProjectName + '\n'
 
     return release_list
@@ -484,7 +501,12 @@ def executeExtractProcess():
     prepareFiletoWrite()
 
     # Project list
-    projectList = ["DDNZ", "SWAG2", "SWAG3", "SPRINTOVER", "TECHOVER"]
+    #projectList = ["DDNZ", "SWAG2", "SWAG3", "SPRINTOVER", "TECHOVER"]
+    projectList = getConfig('projects')
+
+    if not projectList:
+        print("Projects config not found in", ConfigFile)
+        sys.exit(2)
 
     for project in projectList:
         importFromJira(project)
@@ -556,18 +578,38 @@ def listallTeams():
     #    print(p.raw['fields'][f])
 
 
+def getConfig(confvar):
+    projectList=''
+
+    if (not os.path.exists(ConfigFile)):
+        print("Whhoops! config file not found ", ConfigFile)
+    else:
+
+        f = open(ConfigFile, 'r+')
+        file_data = f.read().splitlines()
+        f.close()
+
+        for line in file_data:
+            if line.startswith(confvar):
+                projectList = line.replace(confvar, '').replace('=', '').split(',')
+                break
+    return projectList
+
+
 def main(argv):
 
     userName = ''
     password = ''
+    basefilename = os.path.basename(__file__)
+
     try:
         opts, args = getopt.getopt(argv, "hu:p:", ["uname=", "pass="])
     except getopt.GetoptError:
-        print ('test.py -u <username> -p <password>')
+        print (basefilename, ' -u <username> -p <password>')
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print ('test.py -u <username> -p <password>')
+            print (basefilename, ' -u <username> -p <password>')
             sys.exit()
         elif opt in ("-u", "--uname"):
             userName = arg
@@ -575,7 +617,7 @@ def main(argv):
             password = arg
 
     if not userName or not password :
-        print('test.py -u <username> -p <password>')
+        print(basefilename, ' -u <username> -p <password>')
         sys.exit()
     else:
         global UNAME
@@ -584,20 +626,31 @@ def main(argv):
         UNAME=userName
         PASSWD=password
 
-        #executeExtractProcess()
+        executeExtractProcess()
+    '''
+    global UNAME
+    global PASSWD
+    UNAME = 'xxxx'
+    PASSWD = 'xxxx'
+    executeExtractProcess()
+    '''
 
-        # --- Test Workspace --- #
-        #listallTeams()
-        #a= coneverttoxls('JiraIssues.csv')
-        #createTeamMembercsv('TeamMember')
-        #GetSprintsList('DDNZ')
-        #listallboards()
-        List_all_Fields()
-        #worklog_trial()
-        #createtable('DDNZ.xlsx','A1:B5')
-        #cleansesprintfile()
+
+# --- Test Workspace --- #
+    #listallTeams()
+    #a= coneverttoxls('JiraIssues.csv')
+    #createTeamMembercsv('TeamMember')
+    #executeExtractProcess()
+    #GetSprintsList('DDNZ')
+    #listallboards()
+    #List_all_Fields()
+    #createReleasescsv("Releases","SWAG2")
+    #worklog_trial()
+    #createtable('DDNZ.xlsx','A1:B5')
+    #cleansesprintfile()
 
 
 if __name__ == '__main__':
     urllib3.disable_warnings()
     main(sys.argv[1:])
+

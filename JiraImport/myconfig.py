@@ -1,6 +1,6 @@
 # <!----- PARAMETERS ------
 
-JIRA_BASE_URL = 'https://jira.vectorams.co.nz'
+JIRA_BASE_URL = 'https://jira.org.co.nz'
 
 SprintExtract = "Sprints"
 JiraExtract = "JiraIssues"
